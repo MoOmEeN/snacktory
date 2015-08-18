@@ -15,12 +15,10 @@
  */
 package de.jetwick.snacktory;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.Proxy;
@@ -31,8 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Class to fetch articles. This class is thread safe.
@@ -73,7 +69,8 @@ public class HtmlFetcher {
         reader.close();
     }
     private String referrer = "http://jetsli.de/crawler";
-    private String userAgent = "Mozilla/5.0 (compatible; Jetslide; +" + referrer + ")";
+    //private String userAgent = "Mozilla/5.0 (compatible; Jetslide; +" + referrer + ")";
+    private String userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36";
     private String cacheControl = "max-age=0";
     private String language = "en-us";
     private String accept = "application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5";
@@ -276,6 +273,7 @@ public class HtmlFetcher {
                 extractor.extractContent(result, fetchAsString(urlToDownload, timeout), maxContentSize);
             } catch (IOException io){
                 // do nothing
+                String a = "403";
             }
             if (result.getFaviconUrl().isEmpty())
                 result.setFaviconUrl(SHelper.getDefaultFavicon(url));
