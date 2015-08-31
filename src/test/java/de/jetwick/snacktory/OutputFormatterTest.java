@@ -28,10 +28,15 @@ public class OutputFormatterTest {
 
     @Test
     public void testSkipHidden() {
+        // given
         OutputFormatter formatter = new OutputFormatter();
         Document doc = Jsoup.parse("<div><div style=\"display:none\">xy</div>test</div>");
         StringBuilder sb = new StringBuilder();
+
+        // when
         formatter.appendTextSkipHidden(doc, sb, 0);
+
+        // then
         assertEquals("test", sb.toString());
     }
 }

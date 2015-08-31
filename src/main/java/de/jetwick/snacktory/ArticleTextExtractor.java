@@ -1,18 +1,6 @@
 package de.jetwick.snacktory;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
-import java.util.Date;
+import org.apache.commons.lang.time.DateUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -20,7 +8,10 @@ import org.jsoup.select.Elements;
 import org.jsoup.select.Selector.SelectorParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.commons.lang.time.*;
+
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * This class is thread safe.
@@ -118,6 +109,14 @@ public class ArticleTextExtractor {
         this.formatter = formatter;
     }
 
+    // MINE
+    public JResult extractContent(String html, boolean withImages) throws Exception {
+        if (html.isEmpty())
+            throw new IllegalArgumentException("html string is empty!?");
+
+        return extractContent(new JResult(), Jsoup.parse(html), formatter, true, 0, true);
+    }
+
     /**
      * @param html extracts article text from given html string. wasn't tested
      * with improper HTML, although jSoup should be able to handle minor stuff.
@@ -207,22 +206,34 @@ public class ArticleTextExtractor {
 
         return bestMatchElement;
     }
+    public JResult extractContent(JResult res, Document doc, OutputFormatter formatter,
+                                  Boolean extractimages, int maxContentSize) throws Exception {
+        return extractContent(res, doc, formatter, extractimages, maxContentSize, false);
+    }
 
     public JResult extractContent(JResult res, Document doc, OutputFormatter formatter, 
-                                  Boolean extractimages, int maxContentSize) throws Exception {
+                                  Boolean extractimages, int maxContentSize, boolean inlineImages) throws Exception {
         Document origDoc = doc.clone();
-        JResult result = extractContent(res, doc, formatter, extractimages, maxContentSize, true);
+        JResult result = extractContent(res, doc, formatter, extractimages, maxContentSize, true, inlineImages);
         //System.out.println("result.getText().length()="+result.getText().length());
         if (result.getText().length() == 0) {
-            result = extractContent(res, origDoc, formatter, extractimages, maxContentSize, false);
+            result = extractContent(res, origDoc, formatter, extractimages, maxContentSize, false, inlineImages);
         }
         return result;
     }
 
 
+    private static String getSnippet(String data){
+        if (data.length() < 50)
+            return data;
+        else
+            return data.substring(0, 50);
+    }
+
     // main workhorse
-    public JResult extractContent(JResult res, Document doc, OutputFormatter formatter, 
-                                  Boolean extractimages, int maxContentSize, boolean cleanScripts) throws Exception {
+    public JResult extractContent(JResult res, Document doc, OutputFormatter formatter,
+                                  Boolean extractimages, int maxContentSize, boolean cleanScripts,
+                                  boolean inlineImages) throws Exception {
         if (doc == null)
             throw new NullPointerException("missing document");
 
@@ -258,7 +269,7 @@ public class ArticleTextExtractor {
             res.setDate(docdate);
         }
 
-        // now remove the clutter 
+        // now remove the clutter
         if (cleanScripts) {
             prepareDocument(doc);
         }
@@ -271,7 +282,7 @@ public class ArticleTextExtractor {
         if (bestMatchElement != null) {
             if (extractimages) {
                 List<ImageResult> images = new ArrayList<ImageResult>();
-                Element imgEl = determineImageSource(bestMatchElement, images);
+                Element imgEl = ImageExtractor.extractImages(bestMatchElement, images);
                 if (imgEl != null) {
                     res.setImageUrl(SHelper.replaceSpaces(imgEl.attr("src")));
                     // TODO remove parent container of image if it is contained in bestMatchElement
@@ -282,7 +293,7 @@ public class ArticleTextExtractor {
             }
 
             // clean before grabbing text
-            String text = formatter.getFormattedText(bestMatchElement);
+            String text = formatter.getFormattedText(bestMatchElement, inlineImages);
             text = removeTitleFromText(text, res.getTitle());
             // this fails for short facebook post and probably tweets: text.length() > res.getDescription().length()
             if (text.length() > res.getTitle().length()) {
@@ -327,8 +338,8 @@ public class ArticleTextExtractor {
 
         // Sanity checks in author description.
         String authorDescSnippet = getSnippet(res.getAuthorDescription());
-        if (getSnippet(res.getText()).equals(authorDescSnippet) || 
-             getSnippet(res.getDescription()).equals(authorDescSnippet)) {
+        if (getSnippet(res.getText()).equals(authorDescSnippet) ||
+                getSnippet(res.getDescription()).equals(authorDescSnippet)) {
             res.setAuthorDescription("");
         } else {
             if (res.getAuthorDescription().length() > MAX_AUTHOR_DESC_LENGHT){
@@ -343,13 +354,6 @@ public class ArticleTextExtractor {
         }
 
         return res;
-    }
-
-    private static String getSnippet(String data){
-        if (data.length() < 50)
-            return data;
-        else
-            return data.substring(0, 50);
     }
 
     protected String extractTitle(Document doc) {
@@ -783,7 +787,7 @@ public class ArticleTextExtractor {
 	    }
 	    if (!language.isEmpty()) {
 			if (language.length()>2) {
-				language = language.substring(0,2);
+				language = language.substring(0, 2);
 			}
 		}
 	    return language;
@@ -1048,72 +1052,6 @@ public class ArticleTextExtractor {
         return weight;
     }
 
-    public Element determineImageSource(Element el, List<ImageResult> images) {
-        int maxWeight = 0;
-        Element maxNode = null;
-        Elements els = el.select("img");
-        if (els.isEmpty())
-            els = el.parent().select("img");
-
-        double score = 1;
-        for (Element e : els) {
-            String sourceUrl = e.attr("src");
-            if (sourceUrl.isEmpty() || isAdImage(sourceUrl))
-                continue;
-
-            int weight = 0;
-            int height = 0;
-            try {
-                height = Integer.parseInt(e.attr("height"));
-                if (height >= 50)
-                    weight += 20;
-                else
-                    weight -= 20;
-            } catch (Exception ex) {
-            }
-
-            int width = 0;
-            try {
-                width = Integer.parseInt(e.attr("width"));
-                if (width >= 50)
-                    weight += 20;
-                else
-                    weight -= 20;
-            } catch (Exception ex) {
-            }
-            String alt = e.attr("alt");
-            if (alt.length() > 35)
-                weight += 20;
-
-            String title = e.attr("title");
-            if (title.length() > 35)
-                weight += 20;
-
-            String rel = null;
-            boolean noFollow = false;
-            if (e.parent() != null) {
-                rel = e.parent().attr("rel");
-                if (rel != null && rel.contains("nofollow")) {
-                    noFollow = rel.contains("nofollow");
-                    weight -= 40;
-                }
-            }
-
-            weight = (int) (weight * score);
-            if (weight > maxWeight) {
-                maxWeight = weight;
-                maxNode = e;
-                score = score / 2;
-            }
-
-            ImageResult image = new ImageResult(sourceUrl, weight, title, height, width, alt, noFollow);
-            images.add(image);
-        }
-
-        Collections.sort(images, new ImageComparator());
-        return maxNode;
-    }
-
     /**
      * Prepares document. Currently only stipping unlikely candidates, since
      * from time to time they're getting more score than good ones especially in
@@ -1177,9 +1115,7 @@ public class ArticleTextExtractor {
                 + " class=" + child.className() + " text=" + child.text() + " " + add2);
     }
 
-    private boolean isAdImage(String imageUrl) {
-        return SHelper.count(imageUrl, "ad") >= 2;
-    }
+
 
     /**
      * Match only exact matching as longestSubstring can be too fuzzy
@@ -1296,20 +1232,6 @@ public class ArticleTextExtractor {
     }
 
 
-    /**
-     * Comparator for Image by weight
-     *
-     * @author Chris Alexander, chris@chris-alexander.co.uk
-     *
-     */
-    public class ImageComparator implements Comparator<ImageResult> {
-
-        @Override
-        public int compare(ImageResult o1, ImageResult o2) {
-            // Returns the highest weight first
-            return o2.weight.compareTo(o1.weight);
-        }
-    }
 
 
     /**

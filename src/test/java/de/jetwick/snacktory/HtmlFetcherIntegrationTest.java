@@ -15,9 +15,11 @@
  */
 package de.jetwick.snacktory;
 
+import org.apache.commons.lang.time.DateFormatUtils;
 import org.junit.Test;
-import static org.junit.Assert.*;
-import org.apache.commons.lang.time.*;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  *
@@ -110,5 +112,17 @@ public class HtmlFetcherIntegrationTest {
     public void testXml() throws Exception {
         String str = new HtmlFetcher().fetchAsString("http://blogs.adobe.com/comments/feed", 10000);
         assertTrue(str, str.startsWith("<?xml version="));
+    }
+
+    @Test
+    public void ole() throws Exception {
+        JResult str = new HtmlFetcher().fetchAndExtract("http://olemagazyn.pl/aritz-el-rey-leon-aduriz", 10000, false);
+        System.out.println(str);
+    }
+
+    @Test
+    public void ole2() throws Exception {
+        JResult str = new HtmlFetcher().fetchAndExtract("http://runtheworld.pl/jak-odpoczywac-przed-zawodami-naciaganie-zasad-pod-wlasny-organizm/", 10000, false);
+        System.out.println(str);
     }
 }

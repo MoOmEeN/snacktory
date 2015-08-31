@@ -2,13 +2,14 @@ package de.jetwick.snacktory;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Node;
+import org.jsoup.nodes.TextNode;
+import org.jsoup.parser.Tag;
 import org.jsoup.select.Elements;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
-import org.jsoup.nodes.Node;
-import org.jsoup.nodes.TextNode;
 
 /**
  * @author goose | jim
@@ -26,7 +27,7 @@ public class OutputFormatter {
     protected final int minFirstParagraphText;
     protected final int minParagraphText;
     protected final List<String> nodesToReplace;
-    protected String nodesToKeepCssSelector = "p, ol";
+    protected String nodesToKeepCssSelector = "p, ol, img";
 
     public OutputFormatter() {
         this(MIN_FIRST_PARAGRAPH_TEXT, MIN_PARAGRAPH_TEXT, NODES_TO_REPLACE);
@@ -57,11 +58,11 @@ public class OutputFormatter {
     /**
      * takes an element and turns the P tags into \n\n
      */
-    public String getFormattedText(Element topNode) {
+    public String getFormattedText(Element topNode, boolean inlineImages) {
         setParagraphIndex(topNode, nodesToKeepCssSelector);
         removeNodesWithNegativeScores(topNode);
         StringBuilder sb = new StringBuilder();
-        int countOfP = append(topNode, sb, nodesToKeepCssSelector);
+        int countOfP = append(topNode, sb, nodesToKeepCssSelector, inlineImages);
         String str = SHelper.innerTrim(sb.toString());
 
         int topNodeLength = topNode.text().length();
@@ -86,22 +87,42 @@ public class OutputFormatter {
         return Jsoup.parse(str).text();
     }
 
+    public String getContentHTML(Element node, boolean inlineImages){
+        return null;
+    }
+
     /**
      * If there are elements inside our top node that have a negative gravity
      * score remove them
      */
     protected void removeNodesWithNegativeScores(Element topNode) {
         Elements gravityItems = topNode.select("*[gravityScore]");
+
         for (Element item : gravityItems) {
             int score = getScore(item);
             int paragraphIndex = getParagraphIndex(item);
             if (score < 0 || item.text().length() < getMinParagraph(paragraphIndex)){
+//                Elements imgs = ImageExtractor.getImages(item);
+                Elements imgs = item.select("img");
+                for (Element img : imgs){
+                    ImageResult image = ImageExtractor.analyzeImage(img);
+                    if (image == null){
+                        continue;
+                    }
+                    boolean tooSmall = (image.weight != 0 && image.width < 100) ||
+                            (image.height != 0 && image.height < 50);
+                    if (!tooSmall) {
+                        Element imgToAdd = new Element(Tag.valueOf("img"), "");
+                        imgToAdd.attr("src", image.src);
+                        item.after(imgToAdd);
+                    }
+                }
                 item.remove();
             }
         }
     }
 
-    protected int append(Element node, StringBuilder sb, String tagName) {
+    protected int append(Element node, StringBuilder sb, String tagName, boolean inlineImages) {
         int countOfP = 0; // Number of P elements in the article
         int paragraphWithTextIndex = 0;
         // is select more costly then getElementsByTag?
@@ -114,7 +135,14 @@ public class OutputFormatter {
                     continue MAIN;
                 tmpEl = tmpEl.parent();
             }
-
+            if (inlineImages){
+                boolean isImage = e.tagName().equals("img");
+                if (isImage){
+                    Element img = new Element(Tag.valueOf("img"), "");
+                    img.attr("src", e.attr("src"));
+                    sb.append(img.toString());
+                }
+            }
             String text = node2Text(e);
             if (text.isEmpty() || text.length() < getMinParagraph(paragraphWithTextIndex) 
                 || text.length() > SHelper.countLetters(text) * 2){
