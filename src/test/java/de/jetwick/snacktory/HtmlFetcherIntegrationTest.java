@@ -15,11 +15,10 @@
  */
 package de.jetwick.snacktory;
 
+import static org.junit.Assert.*;
+
 import org.apache.commons.lang.time.DateFormatUtils;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 /**
  *
@@ -76,7 +75,7 @@ public class HtmlFetcherIntegrationTest {
     @Test
     public void testEncoding() throws Exception {
         JResult res = new HtmlFetcher().fetchAndExtract("http://www.yomiuri.co.jp/science/", 10000, true);
-        assertEquals("科学ニュース：読売新聞(YOMIURI ONLINE)", res.getTitle());
+        assertEquals("科学・ＩＴニュース：読売新聞(YOMIURI ONLINE)", res.getTitle());
     }
 
     @Test
@@ -100,12 +99,6 @@ public class HtmlFetcherIntegrationTest {
     public void testFurther() throws Exception {
         JResult res = new HtmlFetcher().fetchAndExtract("http://linksunten.indymedia.org/de/node/41619?utm_source=twitterfeed&utm_medium=twitter", 10000, true);
         assertTrue(res.getText(), res.getText().startsWith("Es gibt kein ruhiges Hinterland! Schon wieder den "));
-    }
-
-    @Test
-    public void testDoubleResolve() throws Exception {
-        JResult res = new HtmlFetcher().fetchAndExtract("http://t.co/eZRKcEYI", 10000, true);
-        assertTrue(res.getTitle(), res.getTitle().startsWith("teleject/Responsive-Web-Design-Artboards "));
     }
 
     @Test
