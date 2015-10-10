@@ -23,7 +23,7 @@ public class OutputFormatter {
     public static final int MIN_FIRST_PARAGRAPH_TEXT = 50; // Min size of first paragraph
     public static final int MIN_PARAGRAPH_TEXT = 30;       // Min size of any other paragraphs
     private static final List<String> NODES_TO_REPLACE = Arrays.asList("strong", "b", "i");
-    private Pattern unlikelyPattern = Pattern.compile("display\\:none|visibility\\:hidden");
+    private Pattern hiddenPattern = Pattern.compile("display\\:none|visibility\\:hidden");
     protected final int minFirstParagraphText;
     protected final int minParagraphText;
     protected final List<String> nodesToReplace;
@@ -76,19 +76,16 @@ public class OutputFormatter {
             return str;
 
         // no subelements
-        if (str.isEmpty() || (!topNode.text().isEmpty() 
+        boolean noSubelements = str.isEmpty() || (!topNode.text().isEmpty()
             && str.length() <= topNode.ownText().length())
-            || countOfP == 0 || lowTextRatio){
+            || countOfP == 0 || lowTextRatio;
+        if (noSubelements){
             str = topNode.text();
         }
 
         // if jsoup failed to parse the whole html now parse this smaller 
         // snippet again to avoid html tags disturbing our text:
         return Jsoup.parse(str).text();
-    }
-
-    public String getContentHTML(Element node, boolean inlineImages){
-        return null;
     }
 
     /**
@@ -126,30 +123,26 @@ public class OutputFormatter {
         int countOfP = 0; // Number of P elements in the article
         int paragraphWithTextIndex = 0;
         // is select more costly then getElementsByTag?
-        MAIN:
-        for (Element e : node.select(tagName)) {
-            Element tmpEl = e;
-            // check all elements until 'node'
-            while (tmpEl != null && !tmpEl.equals(node)) {
-                if (unlikely(tmpEl))
-                    continue MAIN;
-                tmpEl = tmpEl.parent();
+        for (Element element : node.select(tagName)) {
+            boolean isUnlikely = isUnlikely(element, node);
+            if (isUnlikely){
+                continue;
             }
             if (inlineImages){
-                boolean isImage = e.tagName().equals("img");
+                boolean isImage = element.tagName().equals("img");
                 if (isImage){
                     Element img = new Element(Tag.valueOf("img"), "");
-                    img.attr("src", e.attr("src"));
+                    img.attr("src", element.attr("src"));
                     sb.append(img.toString());
                 }
             }
-            String text = node2Text(e);
+            String text = node2Text(element);
             if (text.isEmpty() || text.length() < getMinParagraph(paragraphWithTextIndex) 
                 || text.length() > SHelper.countLetters(text) * 2){
                 continue;
             }
 
-            if (e.tagName().equals("p")){
+            if (element.tagName().equals("p")){
                 countOfP++;
             }
 
@@ -159,6 +152,16 @@ public class OutputFormatter {
         }
 
         return countOfP;
+    }
+
+    private boolean isUnlikely(Element node, Element root){
+        // check all elements until 'root'
+        while (node != null && !node.equals(root)) {
+            if (unlikely(node))
+                return true;
+            node = node.parent();
+        }
+        return false;
     }
 
     protected void setParagraphIndex(Element node, String tagName) {
@@ -192,36 +195,52 @@ public class OutputFormatter {
         }
     }
 
-    boolean unlikely(Node e) {
-        if (e.attr("class") != null && e.attr("class").toLowerCase().contains("caption"))
+    private boolean unlikely(Node node) {
+        if (isCaption(node) || isHidden(node)){
             return true;
+        }
+        return false;
+    }
 
-        String style = e.attr("style");
-        String clazz = e.attr("class");
-        if (unlikelyPattern.matcher(style).find() || unlikelyPattern.matcher(clazz).find())
+    private boolean isCaption(Node node){
+        if (node.attr("class") != null && node.attr("class").toLowerCase().contains("caption"))
             return true;
         return false;
     }
 
-    void appendTextSkipHidden(Element e, StringBuilder accum, int indent) {
-        for (Node child : e.childNodes()) {
+    private boolean isHidden(Node node){
+        String style = node.attr("style");
+        String clazz = node.attr("class");
+        if (hiddenPattern.matcher(style).find() || hiddenPattern.matcher(clazz).find())
+            return true;
+        return false;
+    }
+
+
+    String notHiddenText(Element node) {
+        StringBuilder sb = new StringBuilder();
+        for (Node child : node.childNodes()) {
             if (unlikely(child)){
                 continue;
             }
             if (child instanceof TextNode) {
                 TextNode textNode = (TextNode) child;
                 String txt = textNode.text();
-                accum.append(txt);
+                sb.append(txt);
             } else if (child instanceof Element) {
-                Element element = (Element) child;
-                if (accum.length() > 0 && element.isBlock() 
-                    && !lastCharIsWhitespace(accum))
-                    accum.append(" ");
-                else if (element.tagName().equals("br"))
-                    accum.append(" ");
-                appendTextSkipHidden(element, accum, indent + 1);
+                Element childElement = (Element) child;
+                boolean isBr = childElement.tagName().equals("br");
+                if (sb.length() > 0 && childElement.isBlock()
+                    && !lastCharIsWhitespace(sb))
+                    sb.append(" ");
+                else if (isBr)
+//                if (isBr)
+                    sb.append(" ");
+                String childText = notHiddenText(childElement);
+                sb.append(childText);
             }
         }
+        return sb.toString();
     }
 
     void printWithIndent(String text, int indent){
@@ -243,17 +262,15 @@ public class OutputFormatter {
     }
 
     protected String node2Text(Element el) {
-        StringBuilder sb = new StringBuilder(200);
-        appendTextSkipHidden(el, sb, 0);
-        return sb.toString();
+        return notHiddenText(el);
     }
 
-    public OutputFormatter setUnlikelyPattern(String unlikelyPattern) {
-        this.unlikelyPattern = Pattern.compile(unlikelyPattern);
+    public OutputFormatter setHiddenPattern(String hiddenPattern) {
+        this.hiddenPattern = Pattern.compile(hiddenPattern);
         return this;
     }
 
     public OutputFormatter appendUnlikelyPattern(String str) {
-        return setUnlikelyPattern(unlikelyPattern.toString() + "|" + str);
+        return setHiddenPattern(hiddenPattern.toString() + "|" + str);
     }
 }

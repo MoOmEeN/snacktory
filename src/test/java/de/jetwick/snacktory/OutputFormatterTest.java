@@ -15,10 +15,11 @@
  */
 package de.jetwick.snacktory;
 
+import static org.junit.Assert.*;
+
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.junit.*;
-import static org.junit.Assert.*;
+import org.junit.Test;
 
 /**
  *
@@ -34,9 +35,9 @@ public class OutputFormatterTest {
         StringBuilder sb = new StringBuilder();
 
         // when
-        formatter.appendTextSkipHidden(doc, sb, 0);
+        String text = formatter.notHiddenText(doc);
 
         // then
-        assertEquals("test", sb.toString());
+        assertEquals("test", text);
     }
 }
