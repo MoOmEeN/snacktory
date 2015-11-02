@@ -1,5 +1,6 @@
 package de.jetwick.snacktory;
 
+import de.jetwick.snacktory.utils.SHelper;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 

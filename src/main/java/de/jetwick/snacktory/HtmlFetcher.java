@@ -15,6 +15,7 @@
  */
 package de.jetwick.snacktory;
 
+import de.jetwick.snacktory.utils.SHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

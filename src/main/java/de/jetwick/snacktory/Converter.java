@@ -15,11 +15,16 @@
  */
 package de.jetwick.snacktory;
 
-import java.io.*;
-import java.net.SocketTimeoutException;
-import java.nio.charset.Charset;
+import de.jetwick.snacktory.utils.SHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.SocketTimeoutException;
+import java.nio.charset.Charset;
 
 /**
  * This class is not thread safe. Use one new instance every time due to
